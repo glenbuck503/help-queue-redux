@@ -6,6 +6,8 @@ import EditTicketForm from './EditTicketForm';
 import { connect } from 'react-redux';
 import PropTypes from "prop-types";
 import * as a from './../actions';
+import { withFirestore, isLoaded } from 'react-redux-firebase';
+
 
 
 class TicketControl extends React.Component {
@@ -40,35 +42,55 @@ class TicketControl extends React.Component {
 
 
   handleChangingSelectedTicket = (id) => {
-    const selectedTicket = this.props.masterTicketList[id];
-    this.setState({selectedTicket: selectedTicket});
+    this.props.firestore.get({collection: 'tickets', doc: id}).then((ticket) => {
+      const firestoreTicket = {
+        names: ticket.get("names"),
+        location: ticket.get("location"),
+        issue: ticket.get("issue"),
+        id: ticket.id
+      }
+      this.setState({selectedTicket: firestoreTicket });
+    });
   }
 
   handleDeletingTicket = (id) => {
-    const { dispatch } = this.props;
-    const action = a.deleteTicket(id);
-    dispatch(action);
+    this.props.firestore.delete({collection: 'tickets', doc: id});
     this.setState({selectedTicket: null});
   }
 
   handleEditClick = () => {
     this.setState({editing: true});
   }
-  // handleEditingTicketInList = (ticketToEdit) => {
-  //   const { dispatch } = this.props;
-  //   const action = a.addTicket(ticketToEdit);
-  //   dispatch(action);
-  //   this.setState({
-  //     editing: false,
-  //     selectedTicket: null
-  //   });
-  // }
+
+  handleEditingTicketInList = () => {
+    this.setState({
+      editing: false,
+      selectedTicket: null
+    });
+  }
 
   render(){
+
+    const auth = this.props.firebase.auth();
+    if (!isLoaded(auth)) {
+      return (
+        <React.Fragment>
+          <h1>Loading...</h1>
+        </React.Fragment>
+      )
+    }
+    if ((isLoaded(auth)) && (auth.currentUser == null)) {
+      return (
+      <React.Fragment>
+        <h1>You must be signed in to access the queue.</h1>
+      </React.Fragment>
+    )
+  } 
+
+
+   if ((isLoaded(auth)) && (auth.currentUser != null)) {
     let currentlyVisibleState = null;
     let buttonText = null; 
-
-
     if (this.state.editing ) {      
       currentlyVisibleState = <EditTicketForm ticket = {this.state.selectedTicket} onEditTicket = {this.handleEditingTicketInList} />
       buttonText = "Return to Ticket List";
@@ -93,24 +115,20 @@ class TicketControl extends React.Component {
         <button onClick={this.handleClick}>{buttonText}</button> 
       </React.Fragment>
     );
-  }
-
+   }
+ }
 }
 
 
 TicketControl.propTypes = {
-  masterTicketList: PropTypes.object,
   formVisibleOnPage: PropTypes.bool
 };
 
 const mapStateToProps = state => {
   return {
-    masterTicketList: state.masterTicketList,
     formVisibleOnPage: state.formVisibleOnPage
   }
 }
 
-
 TicketControl = connect(mapStateToProps)(TicketControl);
-
-export default TicketControl;
+export default withFirestore(TicketControl);
